@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//+build !amd64 noasm appengine
+//+build !go1.8 !amd64 noasm appengine
 
 package f64
 
@@ -20,18 +20,30 @@ func Ger(m, n uintptr, alpha float64,
 		for i, xv := range x {
 			tmp := alpha * xv
 			if tmp != 0 {
-				atmp := a[i*lda : i*lda+n]
+				atmp := a[uintptr(i)*lda : uintptr(i)*lda+n]
 				AxpyUnitary(tmp, y, atmp)
 			}
 		}
 		return
 	}
 
+	var ky, kx uintptr
+	if incY > 0 {
+		ky = 0
+	} else {
+		ky = -(n - 1) * incY
+	}
+	if incX > 0 {
+		kx = 0
+	} else {
+		kx = -(m - 1) * incX
+	}
+
 	ix := kx
-	for i := 0; i < m; i++ {
+	for i := 0; i < int(m); i++ {
 		tmp := alpha * x[ix]
 		if tmp != 0 {
-			AxpyInc(tmp, y, a[i*lda:i*lda+n], uintptr(n), uintptr(incY), 1, uintptr(ky), 0)
+			AxpyInc(tmp, y, a[uintptr(i)*lda:uintptr(i)*lda+n], uintptr(n), uintptr(incY), 1, uintptr(ky), 0)
 		}
 		ix += incX
 	}

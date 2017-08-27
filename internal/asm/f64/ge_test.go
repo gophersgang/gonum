@@ -7,43 +7,57 @@ package f64
 import (
 	"fmt"
 	"testing"
+
+	"github.com/gonum/blas/testblas"
 )
 
 func TestGer(t *testing.T) {
 	tests := []struct {
-		m, n uintptr
-		x    []float64
+		m, n            uintptr
+		alpha           float64
+		x, y, a         []float64
+		incX, incY, lda uintptr
+		want            []float64
 	}{
-		{11, 11, nil},
-		{9, 9, nil},
-		{9, 8, nil},
-		{9, 4, nil},
-		{9, 3, nil},
-		{9, 2, nil},
-		{9, 1, nil},
-
-		{4, 4, nil},
-		{3, 3, nil},
-
-		{2, 1, nil},
-		{2, 2, nil},
-		{2, 3, nil},
-		{2, 9, nil},
-
-		{1, 1, nil},
-		{1, 9, nil},
-		{1, 2, nil},
-		{1, 3, nil},
+		{
+			m: 1, n: 1, alpha: 1,
+			x: []float64{2}, incX: 1,
+			y: []float64{4.4}, incY: 1,
+			a: []float64{10}, lda: 1,
+			want: []float64{18.8},
+		},
 	}
 
-	for i, test := range tests {
-		test.x = []float64{0, 0}
-		Ger(test.m, test.n, 0, test.x, 0, nil, 0, nil, 0)
-		n := test.n * (test.m/4 + (test.m&2)>>1 + (test.m & 1))
-		if float64(test.m) != test.x[0] || float64(n) != test.x[1] {
-			t.Error(i, test.m, test.n, n, test.x)
-			t.Error(test.m, test.n, test.m/4*test.n, test.n*((test.m&2)>>1), test.n*(test.m&1))
+	for _, test := range tests {
+		Ger(test.m, test.n, test.alpha, test.x, test.incX, test.y, test.incY, test.a, test.lda)
+
+	}
+}
+
+type dgerWrap struct{}
+
+func (d dgerWrap) Dger(m, n int, alpha float64, x []float64, incX int, y []float64, incY int, a []float64, lda int) {
+	Ger(uintptr(m), uintptr(n), alpha, x, uintptr(incX), y, uintptr(incY), a, uintptr(lda))
+}
+
+func TestBlasGer(t *testing.T) {
+	testblas.DgerTest(t, dgerWrap{})
+}
+
+func BenchmarkBlasGer(t *testing.B) {
+	for _, dims := range newIncSet(3, 10, 30, 100, 300, 1000, 1e4, 1e5) {
+		m, n := dims.x, dims.y
+		if m/n >= 100 || n/m >= 100 {
+			continue
 		}
-		fmt.Println(test.m, test.n, test.x)
+		for _, inc := range newIncSet(1, 2, 3, 4, 10) {
+			incX, incY := inc.x, inc.y
+			t.Run(fmt.Sprintf("Dger %dx%d (%d %d)", m, n, incX, incY), func(b *testing.B) {
+				for i := 0; i < t.N; i++ {
+					testblas.DgerBenchmark(b, dgerWrap{}, m, n, incX, incY)
+				}
+			})
+
+		}
 	}
 }

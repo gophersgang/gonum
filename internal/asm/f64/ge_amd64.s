@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//+build !noasm,!appengine
+//+build go1.8,!noasm,!appengine
 
 #include "textflag.h"
 
@@ -12,6 +12,9 @@
 #define M CX
 #define N_DIM n+8(FP)
 #define N BX
+
+#define TMP1 R14
+#define TMP2 R15
 
 #define X_PTR SI
 #define Y y_base+56(FP)
@@ -31,24 +34,25 @@
 #define ALPHA X0
 
 #define LOAD4 \
-	LONG  $0x0E120FF2               \ // @ MOVDDUP (SI), X1
-	LONG  $0x120F42F2; WORD $0x0614 \ // @ MOVDDUP (SI)(R8*1), X2
-	LONG  $0x120F42F2; WORD $0x461C \ // @ MOVDDUP (SI)(R8*2), X3
-	LONG  $0x120F42F2; WORD $0x0E24 \ // @ MOVDDUP (SI)(R9*1), X4
-	MULPD ALPHA, X1                 \
-	MULPD ALPHA, X2                 \
-	MULPD ALPHA, X3                 \
-	MULPD ALPHA, X4
+	PREFETCHNTA (X_PTR )(INC_X*8)     \
+	MOVDDUP     (X_PTR), X1           \
+	MOVDDUP     (X_PTR)(INC_X*1), X2  \
+	MOVDDUP     (X_PTR)(INC_X*2), X3  \
+	MOVDDUP     (X_PTR)(INC3_X*1), X4 \
+	MULPD       ALPHA, X1             \
+	MULPD       ALPHA, X2             \
+	MULPD       ALPHA, X3             \
+	MULPD       ALPHA, X4
 
 #define LOAD2 \
-	LONG  $0x0E120FF2               \ // @ MOVDDUP (SI), X1
-	LONG  $0x120F42F2; WORD $0x0614 \ // @ MOVDDUP (SI)(R8*1), X2
-	MULPD ALPHA, X1                 \
-	MULPD ALPHA, X2
+	MOVDDUP (X_PTR), X1          \
+	MOVDDUP (X_PTR)(INC_X*1), X2 \
+	MULPD   ALPHA, X1            \
+	MULPD   ALPHA, X2
 
 #define LOAD1 \
-	LONG  $0x0E120FF2 \ // MOVDDUP (SI), X1
-	MULPD ALPHA, X1
+	MOVDDUP (X_PTR), X1 \
+	MULPD   ALPHA, X1
 
 #define KERNEL_LOAD4 \
 	MOVUPS (Y_PTR), X5       \
@@ -244,11 +248,11 @@ TEXT ·Ger(SB), NOSPLIT, $0
 	MOVQ M_DIM, M
 	MOVQ N_DIM, N
 	CMPQ M, $0
-	JLE  end
+	JE   end
 	CMPQ N, $0
-	JLE  end
+	JE   end
 
-	LONG $0x44120FF2; WORD $0x1824 // MOVDDUP alpha+16(FP), X0
+	MOVDDUP alpha+16(FP), X0
 
 	MOVQ x_base+24(FP), X_PTR
 	MOVQ y_base+56(FP), Y_PTR
@@ -260,6 +264,15 @@ TEXT ·Ger(SB), NOSPLIT, $0
 	LEAQ (LDA)(LDA*2), LDA3       // LDA3 = LDA * 3
 	LEAQ (INC_X)(INC_X*2), INC3_X // INC3_X = INC_X * 3
 	MOVQ A_ROW, A_PTR
+
+	XORQ    TMP2, TMP2
+	MOVQ    M, TMP1
+	SUBQ    $1, TMP1
+	IMULQ   INC_X, TMP1
+	NEGQ    TMP1
+	CMPQ    INC_X, $0
+	CMOVQLT TMP1, TMP2
+	LEAQ    (X_PTR)(TMP2*SIZE), X_PTR
 
 	CMPQ incY+80(FP), $1 // Check for dense vector Y (fast-path)
 	JG   inc
@@ -288,7 +301,7 @@ r4c4:
 	JNZ  r4c4
 
 	// Reload ALPHA after it's clobbered by STORE_4x4
-	LONG $0x44120FF2; WORD $0x1824 // MOVDDUP alpha+16(FP), X0
+	MOVDDUP alpha+16(FP), ALPHA
 
 r4c2:
 	TESTQ $2, N_DIM
@@ -427,6 +440,15 @@ inc:  // Alogrithm for incY > 0 ( split loads in kernel )
 	SHLQ $3, INC_Y
 	LEAQ (INC_Y)(INC_Y*2), INC3_Y // INC3_Y = INC_Y * 3
 
+	XORQ    TMP2, TMP2
+	MOVQ    N, TMP1
+	SUBQ    $1, TMP1
+	IMULQ   INC_Y, TMP1
+	NEGQ    TMP1
+	CMPQ    INC_Y, $0
+	CMOVQLT TMP1, TMP2
+	LEAQ    (Y_PTR)(TMP2*SIZE), Y_PTR
+
 	SHRQ $2, M
 	JZ   inc_r2
 
@@ -449,7 +471,7 @@ inc_r4c4:
 	JNZ  inc_r4c4
 
 	// Reload ALPHA after it's clobbered by STORE_4x4
-	LONG $0x44120FF2; WORD $0x1824 // MOVDDUP alpha+16(FP), X0
+	MOVDDUP alpha+16(FP), ALPHA
 
 inc_r4c2:
 	TESTQ $2, N_DIM
