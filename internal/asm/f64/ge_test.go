@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.7
+
 package f64
 
 import (
@@ -30,7 +32,6 @@ func TestGer(t *testing.T) {
 
 	for _, test := range tests {
 		Ger(test.m, test.n, test.alpha, test.x, test.incX, test.y, test.incY, test.a, test.lda)
-
 	}
 }
 
@@ -47,7 +48,7 @@ func TestBlasGer(t *testing.T) {
 func BenchmarkBlasGer(t *testing.B) {
 	for _, dims := range newIncSet(3, 10, 30, 100, 300, 1000, 1e4, 1e5) {
 		m, n := dims.x, dims.y
-		if m/n >= 100 || n/m >= 100 {
+		if m/n >= 100 || n/m >= 100 || (m == 1e5 && n == 1e5) {
 			continue
 		}
 		for _, inc := range newIncSet(1, 2, 3, 4, 10) {
