@@ -18,9 +18,7 @@ func Ger(m, n uintptr, alpha float64,
 		x = x[:m]
 		y = y[:n]
 		for i, xv := range x {
-			tmp := alpha * xv
-			atmp := a[uintptr(i)*lda : uintptr(i)*lda+n]
-			AxpyUnitary(tmp, y, atmp)
+			AxpyUnitary(alpha*xv, y, a[uintptr(i)*lda:uintptr(i)*lda+n])
 		}
 		return
 	}
@@ -39,8 +37,7 @@ func Ger(m, n uintptr, alpha float64,
 
 	ix := kx
 	for i := 0; i < int(m); i++ {
-		tmp := alpha * x[ix]
-		AxpyInc(tmp, y, a[uintptr(i)*lda:uintptr(i)*lda+n], uintptr(n), uintptr(incY), 1, uintptr(ky), 0)
+		AxpyInc(alpha*x[ix], y, a[uintptr(i)*lda:uintptr(i)*lda+n], uintptr(n), uintptr(incY), 1, uintptr(ky), 0)
 		ix += incX
 	}
 }
