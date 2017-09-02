@@ -150,7 +150,9 @@ func (Implementation) Dger(m, n int, alpha float64, x []float64, incX int, y []f
 		return
 	}
 
-	var ky, kx int
+	f64.Ger(uintptr(m), uintptr(n), alpha, x, uintptr(incX), y, uintptr(incY), a, uintptr(lda))
+
+	/* var ky, kx int
 	if incY > 0 {
 		ky = 0
 	} else {
@@ -176,7 +178,7 @@ func (Implementation) Dger(m, n int, alpha float64, x []float64, incX int, y []f
 	for i := 0; i < m; i++ {
 		f64.AxpyInc(alpha*x[ix], y, a[i*lda:i*lda+n], uintptr(n), uintptr(incY), 1, uintptr(ky), 0)
 		ix += incX
-	}
+	}*/
 }
 
 // Dgbmv computes
