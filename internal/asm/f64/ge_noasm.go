@@ -41,3 +41,65 @@ func Ger(m, n uintptr, alpha float64,
 		ix += incX
 	}
 }
+
+// GemvN computes
+//  y = alpha * a * x + beta * y
+// where A is an m×n dense matrix, x and y are vectors, and alpha and beta are scalars.
+func GemvN(m, n uintptr, alpha float64, a []float64, lda uintptr, x []float64, incX uintptr, beta float64, y []float64, incY uintptr) {
+	var kx, ky, i uintptr
+	if int(incX) < 0 {
+		kx = uintptr(-int(n-1) * int(incX))
+	}
+	if int(incY) < 0 {
+		ky = uintptr(-int(m-1) * int(incY))
+	}
+
+	if incX == 1 && incY == 1 {
+		for i = 0; i < m; i++ {
+			y[i] = y[i]*beta + alpha*DotUnitary(a[lda*i:lda*i+n], x)
+		}
+		return
+	}
+	iy := ky
+	for i = 0; i < m; i++ {
+		y[iy] = y[iy]*beta + alpha*DotInc(x, a[lda*i:lda*i+n], n, incX, 1, kx, 0)
+		iy += incY
+	}
+}
+
+// GemvT computes
+//  y = alpha * A^T * x + beta * y
+// where A is an m×n dense matrix, x and y are vectors, and alpha and beta are scalars.
+func GemvT(m, n uintptr, alpha float64, a []float64, lda uintptr, x []float64, incX uintptr, beta float64, y []float64, incY uintptr) {
+	var kx, ky, i uintptr
+	if int(incX) < 0 {
+		kx = uintptr(-int(m-1) * int(incX))
+	}
+	if int(incY) < 0 {
+		ky = uintptr(-int(n-1) * int(incY))
+		ScalInc(beta, y, n, uintptr(int(-incY)))
+	} else if incY == 1 {
+		ScalUnitary(beta, y)
+	} else {
+		ScalInc(beta, y, n, incY)
+	}
+
+	if incX == 1 && incY == 1 {
+		for i = 0; i < m; i++ {
+			tmp := alpha * x[i]
+			if tmp != 0 {
+				AxpyUnitaryTo(y, tmp, a[lda*i:lda*i+n], y)
+			}
+		}
+		return
+	}
+	ix := kx
+	for i = 0; i < m; i++ {
+		tmp := alpha * x[ix]
+		if tmp != 0 {
+			AxpyInc(tmp, a[lda*i:lda*i+n], y, n, 1, incY, 0, ky)
+		}
+		ix += incX
+	}
+
+}

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gonum/blas"
 	"github.com/gonum/blas/testblas"
 )
 
@@ -61,4 +62,103 @@ func BenchmarkBlasGer(t *testing.B) {
 
 		}
 	}
+}
+
+// The following are panic strings used during parameter checks.
+const (
+	negativeN = "blas: n < 0"
+	zeroIncX  = "blas: zero x index increment"
+	zeroIncY  = "blas: zero y index increment"
+	badLenX   = "blas: x index out of range"
+	badLenY   = "blas: y index out of range"
+
+	mLT0  = "blas: m < 0"
+	nLT0  = "blas: n < 0"
+	kLT0  = "blas: k < 0"
+	kLLT0 = "blas: kL < 0"
+	kULT0 = "blas: kU < 0"
+
+	badUplo      = "blas: illegal triangle"
+	badTranspose = "blas: illegal transpose"
+	badDiag      = "blas: illegal diagonal"
+	badSide      = "blas: illegal side"
+
+	badLdA = "blas: index of a out of range"
+	badLdB = "blas: index of b out of range"
+	badLdC = "blas: index of c out of range"
+
+	badX = "blas: x index out of range"
+	badY = "blas: y index out of range"
+)
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+type dgemvWrap struct {
+	t *testing.T
+}
+
+func (d dgemvWrap) Dgemv(tA blas.Transpose, m, n int, alpha float64, a []float64, lda int, x []float64, incX int, beta float64, y []float64, incY int) {
+	if tA != blas.NoTrans && tA != blas.Trans && tA != blas.ConjTrans {
+		panic(badTranspose)
+	}
+	if m < 0 {
+		panic(mLT0)
+	}
+	if n < 0 {
+		panic(nLT0)
+	}
+	if lda < max(1, n) {
+		panic(badLdA)
+	}
+
+	if incX == 0 {
+		panic(zeroIncX)
+	}
+	if incY == 0 {
+		panic(zeroIncY)
+	}
+	// Set up indexes
+	lenX := m
+	lenY := n
+	if tA == blas.NoTrans {
+		lenX = n
+		lenY = m
+	}
+	if (incX > 0 && (lenX-1)*incX >= len(x)) || (incX < 0 && (1-lenX)*incX >= len(x)) {
+		panic(badX)
+	}
+	if (incY > 0 && (lenY-1)*incY >= len(y)) || (incY < 0 && (1-lenY)*incY >= len(y)) {
+		panic(badY)
+	}
+	if lda*(m-1)+n > len(a) || lda < max(1, n) {
+		panic(badLdA)
+	}
+
+	// Quick return if possible
+	if m == 0 || n == 0 || (alpha == 0 && beta == 1) {
+		return
+	}
+	if alpha == 0 {
+		if incY > 0 {
+			ScalInc(beta, y, uintptr(lenY), uintptr(incY))
+		} else {
+			ScalInc(beta, y, uintptr(lenY), uintptr(-incY))
+		}
+		return
+	}
+
+	if tA == blas.NoTrans {
+		GemvN(uintptr(m), uintptr(n), alpha, a, uintptr(lda), x, uintptr(incX), beta, y, uintptr(incY))
+	} else {
+		GemvT(uintptr(m), uintptr(n), alpha, a, uintptr(lda), x, uintptr(incX), beta, y, uintptr(incY))
+	}
+}
+
+func TestBlasGemv(t *testing.T) {
+	testblas.DgemvTest(t, dgemvWrap{t})
 }
